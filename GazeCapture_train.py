@@ -17,19 +17,18 @@ import csv
 
 #from models.ITrackerModel import ITrackerModel
 
-
-from dataset.MPIIFaceGaze import MPIIFaceGazeData
+from dataset.GazeCaptureDataset_usingcrop import GazeCaptureData
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--data_path',default=r'/home/snowwhite/eye_tracking/MPIIFaceGazeData')
-parser.add_argument('--meta_file', default=r'/home/snowwhite/eye_tracking/MPIIFaceGazeData/all_data_with_eye.json') 
-parser.add_argument('--model', default='UnetEncoderAffine')
-parser.add_argument('--pretrained_path', default=r'results/UnetEncoderGazeCapturefromscratch/best.pth')
+parser.add_argument('--data_path',default=r"/home/snowwhite/eye_tracking/GazeCaptureNew2")
+parser.add_argument('--meta_file', default=r"meta_dotcam_ori_ori_1_10_percent.json") 
+parser.add_argument('--model', default='ITrackerOriAffine')
+parser.add_argument('--pretrained_path', default=None)
 parser.add_argument('--epochs', default=30)
-parser.add_argument('--batch_size', default=32)
+parser.add_argument('--batch_size', default=64)
 parser.add_argument('--num_workers', default=16)
 parser.add_argument('--save_per_epoch', default=1)
-parser.add_argument('--result_name', default="Unetencoder_onlyaffine_GCtoMP")
+parser.add_argument('--result_name', default="ITrackerAffineGazeCapturefromscratch")
 
 args = parser.parse_args()
 
@@ -42,7 +41,7 @@ batch_size = args.batch_size
 
 faceSize=(224,224)
 eyeSize=(112, 112)
-gridSize=(25, 25)
+gridSize=(25,25)
 landmark_mask = False
 onlyRawImage = False  #using only the raw image, no croping
 right_eye_flip = True
@@ -63,8 +62,8 @@ def main(model):
     model = torch.nn.DataParallel(model)
     cudnn.benchmark = True
     print(f"Number of parameters to update when training from scratch: {count_trainable_params(model)}")
-    dataTrain = MPIIFaceGazeData(args.data_path, split='train', right_eye_flip=right_eye_flip, face_size=faceSize, eye_size=eyeSize, grid_size=gridSize, landmark_mask=landmark_mask, meta_file=args.meta_file, onlyRawImage=onlyRawImage)
-    dataVal = MPIIFaceGazeData(args.data_path, split='val', right_eye_flip=right_eye_flip, face_size=faceSize, eye_size=eyeSize, grid_size=gridSize, landmark_mask=landmark_mask, meta_file=args.meta_file, onlyRawImage=onlyRawImage)
+    dataTrain = GazeCaptureData(args.data_path, split='train', right_eye_flip=right_eye_flip, face_size=faceSize, eye_size=eyeSize, grid_size=gridSize, landmark_mask=landmark_mask, meta_file=args.meta_file, onlyRawImage=onlyRawImage)
+    dataVal = GazeCaptureData(args.data_path, split='val', right_eye_flip=right_eye_flip, face_size=faceSize, eye_size=eyeSize, grid_size=gridSize, landmark_mask=landmark_mask, meta_file=args.meta_file, onlyRawImage=onlyRawImage)
     train(model, dataTrain, dataVal)
 
 
@@ -77,7 +76,7 @@ def train(model, dataTrain, dataVal):
 
     val_loader = torch.utils.data.DataLoader(
         dataVal,
-        batch_size=batch_size, shuffle=False,
+        batch_size=batch_size, shuffle=True,
         num_workers=workers, pin_memory=True, prefetch_factor=2)
     print('Sucessfully load trainset:', len(train_loader))
     print('Sucessfully load valset:', len(val_loader))
@@ -99,7 +98,7 @@ def train(model, dataTrain, dataVal):
         except Exception as e:
             print("Error loading pretrained weights:", e)
             print("Training from scratch.")
-    
+    '''
     # 冻结所有层
     for param in model.module.parameters():
         param.requires_grad = False
@@ -110,7 +109,7 @@ def train(model, dataTrain, dataVal):
 
     # 重新启用 fc 的梯度
     for param in model.module.fc.parameters():
-        param.requires_grad = False
+        param.requires_grad = True
 
     print(f"Number of parameters to update when frozen most layers: {count_trainable_params(model)}")
 
@@ -121,8 +120,8 @@ def train(model, dataTrain, dataVal):
                                 weight_decay=weight_decay)
     
     # 只对affine_layer进行优化
-    optimizer = torch.optim.Adam(model.module.affine_layer.parameters(), lr, weight_decay=weight_decay)
-    ''''
+    #optimizer = torch.optim.Adam(model.module.affine_layer.parameters(), lr, weight_decay=weight_decay)
+    
     # 对fc 和 affine——layer优化
     optimizer = torch.optim.Adam(
     [
@@ -133,12 +132,10 @@ def train(model, dataTrain, dataVal):
     weight_decay=weight_decay
     )
     '''
-    '''
     criterion = nn.SmoothL1Loss().to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr,
                                 weight_decay=weight_decay)
-    '''
     
     scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizer, 
                                                milestones=lr_decay_milestones, 
@@ -156,7 +153,7 @@ def train(model, dataTrain, dataVal):
         epoch_loss = 0
         epoch_error = 0
         with tqdm(total=len(train_loader), desc=f"Epoch {epoch + 1}/{epochs}") as bar:
-            for i, (Img, Face, LEye, REye, Grid, GazePoint, GazePointPixel) in enumerate(train_loader):
+            for i, (Img, Face, LEye, REye, Grid, GazePoint) in enumerate(train_loader):
 
                 Face = Face.to(device)
                 LEye = LEye.to(device)
@@ -240,7 +237,7 @@ def validate(model, val_loader, criterion):
         val_loss=0
         val_error=0
         with tqdm(total=len(val_loader), desc="Validation") as vbar:
-            for i, (Img, Face, LEye, REye, Grid, GazePoint, GazePointPixel) in enumerate(val_loader):
+            for i, (Img, Face, LEye, REye, Grid, GazePoint) in enumerate(val_loader):
                 Face = Face.to(device)
                 LEye = LEye.to(device)
                 REye = REye.to(device)
@@ -267,7 +264,7 @@ def test_main(model, weight_path):
     model = load_weight(weight_path)
     model.to(device)
     cudnn.benchmark = True 
-    dataTest = MPIIFaceGazeData(args.data_path, split='test', right_eye_flip=right_eye_flip, face_size=faceSize, eye_size=eyeSize, grid_size=gridSize, landmark_mask=landmark_mask, meta_file=args.meta_file, onlyRawImage=onlyRawImage)
+    dataTest = GazeCaptureData(args.data_path, split='test', right_eye_flip=right_eye_flip, face_size=faceSize, eye_size=eyeSize, grid_size=gridSize, landmark_mask=landmark_mask, meta_file=args.meta_file, onlyRawImage=onlyRawImage)
     test_loader = torch.utils.data.DataLoader(
         dataTest,
         batch_size=batch_size, shuffle=False,
@@ -285,7 +282,7 @@ def test(model, test_loader, criterion):
         inference_times=[]
         test_error = 0
         with tqdm(total=len(test_loader), desc="Test") as vbar:
-            for i, (Img, Face, LEye, REye, Grid, GazePoint, GazePointPixel) in enumerate(test_loader):
+            for i, (Img, Face, LEye, REye, Grid, GazePoint) in enumerate(test_loader):
                 Face = Face.to(device)
                 LEye = LEye.to(device)
                 REye = REye.to(device)

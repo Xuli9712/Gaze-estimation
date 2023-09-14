@@ -15,21 +15,19 @@ matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 import csv
 
-#from models.ITrackerModel import ITrackerModel
-
-
-from dataset.MPIIFaceGaze import MPIIFaceGazeData
+#from dataset.MPIIFaceGaze import MPIIFaceGazeData
+from dataset.BRL4200Gaze import BRL4200GazeData
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--data_path',default=r'/home/snowwhite/eye_tracking/MPIIFaceGazeData')
-parser.add_argument('--meta_file', default=r'/home/snowwhite/eye_tracking/MPIIFaceGazeData/all_data_with_eye.json') 
+parser.add_argument('--data_path',default=r'/home/snowwhite/eye_tracking/brlgaze4200')
+parser.add_argument('--meta_file', default=r'/home/snowwhite/eye_tracking/brlgaze4200/brl4200_split_data.json') 
 parser.add_argument('--model', default='UnetEncoderAffine')
-parser.add_argument('--pretrained_path', default=r'results/UnetEncoderGazeCapturefromscratch/best.pth')
+parser.add_argument('--pretrained_path', default='results/UnetEncoderfromscratch/best.pth')
 parser.add_argument('--epochs', default=30)
-parser.add_argument('--batch_size', default=32)
+parser.add_argument('--batch_size', default=64)
 parser.add_argument('--num_workers', default=16)
 parser.add_argument('--save_per_epoch', default=1)
-parser.add_argument('--result_name', default="Unetencoder_onlyaffine_GCtoMP")
+parser.add_argument('--result_name', default="BRL4200-UnetEncoder-fc")
 
 args = parser.parse_args()
 
@@ -42,7 +40,7 @@ batch_size = args.batch_size
 
 faceSize=(224,224)
 eyeSize=(112, 112)
-gridSize=(25, 25)
+gridSize=(25,25)
 landmark_mask = False
 onlyRawImage = False  #using only the raw image, no croping
 right_eye_flip = True
@@ -63,8 +61,8 @@ def main(model):
     model = torch.nn.DataParallel(model)
     cudnn.benchmark = True
     print(f"Number of parameters to update when training from scratch: {count_trainable_params(model)}")
-    dataTrain = MPIIFaceGazeData(args.data_path, split='train', right_eye_flip=right_eye_flip, face_size=faceSize, eye_size=eyeSize, grid_size=gridSize, landmark_mask=landmark_mask, meta_file=args.meta_file, onlyRawImage=onlyRawImage)
-    dataVal = MPIIFaceGazeData(args.data_path, split='val', right_eye_flip=right_eye_flip, face_size=faceSize, eye_size=eyeSize, grid_size=gridSize, landmark_mask=landmark_mask, meta_file=args.meta_file, onlyRawImage=onlyRawImage)
+    dataTrain = BRL4200GazeData(args.data_path, split='train', right_eye_flip=right_eye_flip, face_size=faceSize, eye_size=eyeSize, grid_size=gridSize, landmark_mask=landmark_mask, meta_file=args.meta_file, onlyRawImage=onlyRawImage)
+    dataVal = BRL4200GazeData(args.data_path, split='val', right_eye_flip=right_eye_flip, face_size=faceSize, eye_size=eyeSize, grid_size=gridSize, landmark_mask=landmark_mask, meta_file=args.meta_file, onlyRawImage=onlyRawImage)
     train(model, dataTrain, dataVal)
 
 
@@ -113,7 +111,7 @@ def train(model, dataTrain, dataVal):
         param.requires_grad = False
 
     print(f"Number of parameters to update when frozen most layers: {count_trainable_params(model)}")
-
+    
     #criterion = nn.MSELoss().cuda()
     criterion = nn.SmoothL1Loss().to(device)
 
@@ -121,28 +119,28 @@ def train(model, dataTrain, dataVal):
                                 weight_decay=weight_decay)
     
     # 只对affine_layer进行优化
-    optimizer = torch.optim.Adam(model.module.affine_layer.parameters(), lr, weight_decay=weight_decay)
-    ''''
+    #optimizer = torch.optim.Adam(model.module.affine_layer.parameters(), lr, weight_decay=weight_decay)
+    
     # 对fc 和 affine——layer优化
     optimizer = torch.optim.Adam(
     [
         {'params': model.module.affine_layer.parameters()},
-        {'params': model.module.fc.parameters()},  
+        #{'params': model.module.fc.parameters()},  
     ],
     lr=lr,
     weight_decay=weight_decay
     )
     '''
-    '''
     criterion = nn.SmoothL1Loss().to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr,
                                 weight_decay=weight_decay)
+
     '''
-    
     scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizer, 
                                                milestones=lr_decay_milestones, 
                                                gamma=lr_decay_gamma)
+    
     global_step = 0
     e = []
     train_loss = []
@@ -267,7 +265,7 @@ def test_main(model, weight_path):
     model = load_weight(weight_path)
     model.to(device)
     cudnn.benchmark = True 
-    dataTest = MPIIFaceGazeData(args.data_path, split='test', right_eye_flip=right_eye_flip, face_size=faceSize, eye_size=eyeSize, grid_size=gridSize, landmark_mask=landmark_mask, meta_file=args.meta_file, onlyRawImage=onlyRawImage)
+    dataTest = BRL4200GazeData(args.data_path, split='test', right_eye_flip=right_eye_flip, face_size=faceSize, eye_size=eyeSize, grid_size=gridSize, landmark_mask=landmark_mask, meta_file=args.meta_file, onlyRawImage=onlyRawImage)
     test_loader = torch.utils.data.DataLoader(
         dataTest,
         batch_size=batch_size, shuffle=False,

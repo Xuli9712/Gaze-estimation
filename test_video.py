@@ -7,6 +7,7 @@ import torch.nn.parallel
 import torch.backends.cudnn as cudnn
 import torch.optim
 import torch.utils.data
+import numpy as np
 
 from dataset.BRL4200Gaze import BRL4200GazeData
 
@@ -14,13 +15,9 @@ from dataset.BRL4200Gaze import BRL4200GazeData
 #from models.ITrackerModelWithLandmark import ITrackerModel
 
 parser = argparse.ArgumentParser()
-#parser.add_argument('--data_path',default=r'/home/snowwhite/eye_tracking/brlgaze4200')
-#parser.add_argument('--meta_file', default=r'/home/snowwhite/eye_tracking/brlgaze4200/brl4200_split_data.json') 
-parser.add_argument('--data_path', default=r'/home/snowwhite/eye_tracking/MPIIFaceGazeData')
-parser.add_argument('--meta_file', default=r'/home/snowwhite/eye_tracking/MPIIFaceGazeData/all_data_with_eye.json')  
 parser.add_argument('--model', default='UnetEncoder') 
-parser.add_argument('--weight_path', default=r'results/UnetEncoderGazeCapturefromscratch/best.pth')
-parser.add_argument('--batch_size', default=64)
+parser.add_argument('--weight_path', default=r'results/BRL4200-UnetEncoderfinetune/best.pth')
+parser.add_argument('--batch_size', default=1)
 parser.add_argument('--num_workers', default=8)
 args = parser.parse_args()  
 
@@ -109,7 +106,7 @@ def test(model, test_loader, criterion):
                     pred_gaze = pred_gaze.squeeze().cpu().numpy()
                     gaze_list.append(pred_gaze)
 
-            #visulaize_result_distribution(gaze_list)
+            visulaize_result_distribution(gaze_list)
             mean_test_loss = round(test_loss / len(test_loader), 5)
             mean_test_error = round(test_error/ (len(test_loader)), 5)
             mean_inference_time = round(sum(inference_times) / len(inference_times), 5)
@@ -145,15 +142,15 @@ def test(model, test_loader, criterion):
         return mean_test_loss, mean_test_error
     
 def visulaize_result_distribution(predicted_gazes):
-    background_path = r'visualize_result_all.png'
-    img = cv2.imread(background_path)
+    #background_path = r'tools/points_visualization_3.png'
+    img = np.ones((540, 960))
 
     for gaze in predicted_gazes:
         gaze_x = int(gaze[0] * (1920 / 34.4))
         gaze_y = int(gaze[1] * (1080 / 19.35))
         img = cv2.circle(img, (gaze_x, gaze_y), 3, (0, 0, 255), -1)  # Red color in BGR format
 
-    cv2.imwrite('visualize_result_all.png', img)  # Overwrite the original image with the modified one
+    cv2.imwrite('visualize_result_train.png', img)  # Overwrite the original image with the modified one
 
 
         
