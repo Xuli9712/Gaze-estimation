@@ -120,40 +120,23 @@ class GazeCaptureData(Dataset):
         return len(self.indices)
 
     def __getitem__(self, index):
-        try:
-            if self.onlyRawImage == True:
-                index = self.indices[index]
-                img, GazePoint = self.get_only_raw_image(index)
-                img = self.transformFace(img)
-                return img, GazePoint
-            else:
-                index = self.indices[index]
-                # image in Tensor (C*H*W) 
-                img, Leye, Reye, face, Grid, GazePoint = self.get_image(index)
-                face = self.transformFace(face)
-                Leye = self.transformLEye(Leye)
-                Reye = self.transformREye(Reye)
-                img = self.transformFace(img)
-                Grid = self.transformGrid(Grid)
+        if self.onlyRawImage == True:
+            index = self.indices[index]
+            img, GazePoint = self.get_only_raw_image(index)
+            img = self.transformFace(img)
+            return img, GazePoint
+        else:
+            index = self.indices[index]
+            # image in Tensor (C*H*W) 
+            img, Leye, Reye, face, Grid, GazePoint = self.get_image(index)
+            face = self.transformFace(face)
+            Leye = self.transformLEye(Leye)
+            Reye = self.transformREye(Reye)
+            img = self.transformFace(img)
+            Grid = self.transformGrid(Grid)
 
-                return img, face, Leye, Reye, Grid, GazePoint
-        except Exception as e:
-            if self.onlyRawImage == True:
-                index = self.indices[index-1]
-                img, GazePoint = self.get_only_raw_image(index)
-                img = self.transformFace(img)
-                return img, GazePoint
-            else:
-                index = self.indices[index-1]
-                # image in Tensor (C*H*W) 
-                img, Leye, Reye, face, Grid, GazePoint = self.get_image(index)
-                face = self.transformFace(face)
-                Leye = self.transformLEye(Leye)
-                Reye = self.transformREye(Reye)
-                img = self.transformFace(img)
-                Grid = self.transformGrid(Grid)
-
-                return img, face, Leye, Reye, Grid, GazePoint
+            return img, face, Leye, Reye, Grid, GazePoint
+        
 
 if __name__ == '__main__':
     dataset_path = r'/home/snowwhite/eye_tracking/GazeCaptureNew2'
